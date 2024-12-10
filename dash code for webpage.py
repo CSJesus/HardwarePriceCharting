@@ -19,7 +19,6 @@ def load_and_merge_data():
     try:
         dataframes = [pd.read_csv(file) for file in files]
         merged_df = pd.concat(dataframes, ignore_index=True)
-        merged_df.fillna(0, inplace=True)  # Fill missing values
         return merged_df
     except Exception as e:
         logging.error(f"Error loading CSV files: {e}")
@@ -33,35 +32,65 @@ def create_line_chart(df, product_name):
     fig = go.Figure()
     try:
         product_data = df[df["CPU Name"] == product_name]
-        dates = pd.to_datetime(product_data.columns[1:], errors='coerce').strftime('%d-%b-%Y')
-        prices = product_data.iloc[0, 1:].astype(float).fillna(method="ffill")
-        fig.add_trace(go.Scatter(x=dates, y=prices, mode="lines+markers", name=product_name))
+        # Convert columns to datetime for sorting
+        dates = pd.to_datetime(product_data.columns[1:])
+        prices = product_data.iloc[0, 1:].astype(float)
+        sorted_indices = dates.argsort()
+        dates = dates[sorted_indices]
+        prices = prices.iloc[sorted_indices]
+
+        # Filter out days with NaN prices (no sales)
+        valid_indices = prices.isna()
+        dates = dates[valid_indices]
+        prices = prices[valid_indices]
+
+        # Add trace
+        fig.add_trace(go.Scatter(
+            x=dates.strftime('%d-%b-%Y'),  # Format the dates
+            y=prices,
+            mode="lines+markers",
+            name=product_name
+        ))
     except Exception as e:
         logging.error(f"Error in creating line chart: {e}")
 
+    # Update layout with x-axis showing every other date
     fig.update_layout(
         title="Price History",
-        xaxis=dict(title="Date", tickangle=45),
+        xaxis=dict(
+            title="Date",
+            tickangle=45,
+            tickmode='array',
+            tickvals=dates[::2].strftime('%d-%b-%Y'),
+        ),
         yaxis_title="Price ($)",
         paper_bgcolor="#1E293B",
         plot_bgcolor="#1E293B",
         font_color="white",
-        height=600  # Increased size
-    )
+        height=600)
     return fig
 
 def create_candlestick_chart(df, product_name):
     product_data = df[df["CPU Name"] == product_name]
-    dates = pd.to_datetime(product_data.columns[1:], errors='coerce').strftime('%d-%b-%Y')
-    prices = product_data.iloc[0, 1:].astype(float).fillna(method="ffill")
+    dates = pd.to_datetime(product_data.columns[1:])
+    prices = product_data.iloc[0, 1:].astype(float)
+    sorted_indices = dates.argsort()
+    dates = dates[sorted_indices]
+    prices = prices.iloc[sorted_indices]
 
+    # Filter out days with NaN prices (no sales)
+    valid_indices = prices.isna()
+    dates = dates[valid_indices]
+    prices = prices[valid_indices]
+
+    # Calculate weekly high, low, open, close
     weekly_high = prices.rolling(7, min_periods=1).max()
     weekly_low = prices.rolling(7, min_periods=1).min()
-    weekly_open = prices.rolling(7, min_periods=1).apply(lambda x: x[0])
-    weekly_close = prices.rolling(7, min_periods=1).apply(lambda x: x[-1])
+    weekly_open = prices.rolling(7, min_periods=1).apply(lambda x: x.iloc[0])
+    weekly_close = prices.rolling(7, min_periods=1).apply(lambda x: x.iloc[-1])
 
     fig = go.Figure(data=[go.Candlestick(
-        x=dates,
+        x=dates.strftime('%d-%b-%Y'),
         open=weekly_open,
         high=weekly_high,
         low=weekly_low,
@@ -70,14 +99,20 @@ def create_candlestick_chart(df, product_name):
         decreasing_line_color="#EF4444"
     )])
 
+    # Update layout with x-axis showing every other date
     fig.update_layout(
         title="Weekly Price Ranges",
-        xaxis=dict(title="Date", tickangle=45),
+        xaxis=dict(
+            title="Date",
+            tickangle=45,
+            tickmode='array',
+            tickvals=dates[::2].strftime('%d-%b-%Y'),
+        ),
         yaxis_title="Price ($)",
         paper_bgcolor="#1E293B",
         plot_bgcolor="#1E293B",
         font_color="white",
-        height=500  # Increased size
+        height=500
     )
     return fig
 
