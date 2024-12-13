@@ -102,8 +102,8 @@ def main():
     Main function to process search terms, scrape eBay, and save results to a CSV file.
     :return: None
     """
-    input_file = "search_terms.csv"  # Input file containing search terms
-    output_file = "Average_Prices_By_Day.csv"  # Summary output file
+    input_file = input("Input file (search_terms_NVIDIA_GPU.csv): ")  # Input file containing search terms
+    output_file = f"Average_Prices_By_Day_{input_file}"  # Summary output file
 
     # Check input file exists
     if not os.path.exists(input_file):
